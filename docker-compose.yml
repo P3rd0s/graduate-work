@@ -1,0 +1,85 @@
+version: '3'
+
+# Run as
+# docker-compose build; docker-compose up -d
+# Check with
+# docker ps
+# Then check the logs with
+# docker logs --tail 50 $container_id
+# docker-compose images
+# docker-compose logs --tail 20 repo_name
+
+
+services:
+
+  postgres:
+    build: https://github.com/P3rd0s/Postgres-db.git#main
+    image: postgres-image
+    environment:
+      POSTGRES_DB: "articlesdb"
+      POSTGRES_USER: "iocsfinder"
+      POSTGRES_PASSWORD: "strongHeavyPassword4thisdb"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - .:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iocsfinder -d articlesdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    networks:
+      - app-tier
+
+  redis:
+    build: https://github.com/P3rd0s/RedisScripts.git#main
+    image: redis-image
+    ports:
+      - 6379:6379
+    networks:
+      - app-tier
+
+  scraper:
+    build: https://github.com/P3rd0s/NewsFinder.git#main
+    image: scraper-image
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - app-tier
+
+  flask-backend:
+    build: https://github.com/P3rd0s/Flask-back.git#main
+    image: flask-image
+    restart: unless-stopped
+    ports:
+      - 5000
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - app-tier
+
+  front:
+    build: https://github.com/P3rd0s/IOCs-front.git#main
+    image: angular-image
+    ports:
+      - 8080:80  
+    depends_on:
+      - flask-backend
+    networks:
+      - app-tier
+
+
+
+networks:
+  app-tier:
+    driver: bridge
